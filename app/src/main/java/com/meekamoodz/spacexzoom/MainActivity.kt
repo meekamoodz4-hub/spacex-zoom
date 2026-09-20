@@ -26,6 +26,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,7 +47,6 @@ import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.FlipCameraAndroid
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -56,6 +56,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -65,21 +67,21 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import java.io.File
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
-import java.io.File
 
 class MainActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         setContent {
             SpaceXZoomApp()
         }
@@ -88,7 +90,6 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun SpaceXZoomApp() {
-
     val context = LocalContext.current
 
     var hasCameraPermission by remember {
@@ -133,83 +134,39 @@ fun SpaceXZoomApp() {
 
 @Composable
 fun CameraScreen() {
-
     val context = LocalContext.current
 
-    var previewView by remember {
-        mutableStateOf<PreviewView?>(null)
+    var previewView by remember { mutableStateOf<PreviewView?>(null) }
+    var camera by remember { mutableStateOf<Camera?>(null) }
+    var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
+
+    var isFrontCamera by remember { mutableStateOf(false) }
+    var flashEnabled by remember { mutableStateOf(false) }
+
+    var zoom by remember { mutableFloatStateOf(1f) }
+    var hardwareMaxZoom by remember { mutableFloatStateOf(1f) }
+    var digitalPreviewZoom by remember { mutableFloatStateOf(1f) }
+
+    // Stores every photo taken during this app session.
+    val photos = remember {
+        mutableStateListOf<Bitmap>()
     }
 
-    var camera by remember {
-        mutableStateOf<Camera?>(null)
-    }
-
-    var imageCapture by remember {
-        mutableStateOf<ImageCapture?>(null)
-    }
-
-    var isFrontCamera by remember {
-        mutableStateOf(false)
-    }
-
-    var flashEnabled by remember {
-        mutableStateOf(false)
-    }
-
-    var zoom by remember {
-        mutableFloatStateOf(1f)
-    }
-
-    var hardwareMaxZoom by remember {
-        mutableFloatStateOf(1f)
-    }
-
-    var digitalPreviewZoom by remember {
-        mutableFloatStateOf(1f)
-    }
-
-    var latestPhoto by remember {
-        mutableStateOf<Bitmap?>(null)
-    }
-
-    var showPhotoPreview by remember {
-        mutableStateOf(false)
-    }
+    var showPhotoPreview by remember { mutableStateOf(false) }
+    var selectedPhotoIndex by remember { mutableIntStateOf(0) }
 
     fun updateLiveZoom(newZoom: Float) {
-
-        val safeZoom =
-            newZoom.coerceIn(1f, 30f)
+        val safeZoom = newZoom.coerceIn(1f, 30f)
 
         zoom = safeZoom
 
-        /*
-         * Use the phone's real camera zoom whenever possible.
-         */
-        val hardwareZoom =
-            min(
-                safeZoom,
-                hardwareMaxZoom
-            )
-
-        camera?.cameraControl?.setZoomRatio(
-            hardwareZoom
+        val hardwareZoom = min(
+            safeZoom,
+            hardwareMaxZoom
         )
 
-        /*
-         * If the phone's hardware maximum is reached,
-         * continue zooming the LIVE preview digitally.
-         *
-         * Example:
-         *
-         * Hardware max = 5x
-         * User selects 20x
-         *
-         * Camera = 5x
-         * Digital preview = 20 / 5 = 4x
-         *
-         * Total = 20x
-         */
+        camera?.cameraControl?.setZoomRatio(hardwareZoom)
+
         digitalPreviewZoom =
             if (hardwareMaxZoom > 0f) {
                 max(
@@ -222,77 +179,100 @@ fun CameraScreen() {
     }
 
     fun startCamera() {
-
         val cameraProviderFuture =
             ProcessCameraProvider.getInstance(context)
 
-        cameraProviderFuture.addListener({
+        cameraProviderFuture.addListener(
+            {
+                val cameraProvider =
+                    cameraProviderFuture.get()
 
-            val cameraProvider =
-                cameraProviderFuture.get()
+                val selector =
+                    if (isFrontCamera) {
+                        CameraSelector.DEFAULT_FRONT_CAMERA
+                    } else {
+                        CameraSelector.DEFAULT_BACK_CAMERA
+                    }
 
-            val selector =
-                if (isFrontCamera) {
-                    CameraSelector.DEFAULT_FRONT_CAMERA
-                } else {
-                    CameraSelector.DEFAULT_BACK_CAMERA
-                }
+                val preview =
+                    Preview.Builder().build()
 
-            val preview =
-                Preview.Builder()
-                    .build()
+                val capture =
+                    ImageCapture.Builder()
+                        .setCaptureMode(
+                            ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
+                        )
+                        .setFlashMode(
+                            ImageCapture.FLASH_MODE_OFF
+                        )
+                        .build()
 
-            val capture =
-                ImageCapture.Builder()
-                    .setCaptureMode(
-                        ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
-                    )
-                    .build()
+                val view = previewView
+                    ?: return@addListener
 
-            val view =
-                previewView ?: return@addListener
-
-            preview.setSurfaceProvider(
-                view.surfaceProvider
-            )
-
-            try {
-
-                cameraProvider.unbindAll()
-
-                val newCamera =
-                    cameraProvider.bindToLifecycle(
-                        context as ComponentActivity,
-                        selector,
-                        preview,
-                        capture
-                    )
-
-                camera = newCamera
-                imageCapture = capture
-
-                hardwareMaxZoom =
-                    newCamera.cameraInfo.zoomState
-                        .value
-                        ?.maxZoomRatio
-                        ?: 1f
-
-                updateLiveZoom(zoom)
-
-                newCamera.cameraControl.enableTorch(
-                    false
+                preview.setSurfaceProvider(
+                    view.surfaceProvider
                 )
 
-            } catch (e: Exception) {
+                try {
+                    cameraProvider.unbindAll()
 
-                Toast.makeText(
-                    context,
-                    "Unable to start camera",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
+                    val newCamera =
+                        cameraProvider.bindToLifecycle(
+                            context as ComponentActivity,
+                            selector,
+                            preview,
+                            capture
+                        )
 
-        }, ContextCompat.getMainExecutor(context))
+                    camera = newCamera
+                    imageCapture = capture
+
+                    hardwareMaxZoom =
+                        newCamera.cameraInfo.zoomState.value
+                            ?.maxZoomRatio ?: 1f
+
+                    flashEnabled = false
+
+                    updateLiveZoom(zoom)
+
+                } catch (e: Exception) {
+                    Toast.makeText(
+                        context,
+                        "Unable to start camera",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            },
+            ContextCompat.getMainExecutor(context)
+        )
+    }
+
+    fun toggleFlash() {
+        val currentCamera = camera
+            ?: return
+
+        if (!currentCamera.cameraInfo.hasFlashUnit()) {
+            Toast.makeText(
+                context,
+                "This camera has no flash",
+                Toast.LENGTH_SHORT
+            ).show()
+
+            flashEnabled = false
+            return
+        }
+
+        val newState = !flashEnabled
+
+        currentCamera.cameraControl
+            .enableTorch(newState)
+            .addListener(
+                {
+                    flashEnabled = newState
+                },
+                ContextCompat.getMainExecutor(context)
+            )
     }
 
     fun saveBitmapToGallery(
@@ -319,7 +299,6 @@ fun CameraScreen() {
                 )
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-
                     put(
                         MediaStore.Images.Media.RELATIVE_PATH,
                         Environment.DIRECTORY_PICTURES +
@@ -338,23 +317,20 @@ fun CameraScreen() {
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                 values
             )
+                ?: run {
+                    Toast.makeText(
+                        context,
+                        "Could not save photo",
+                        Toast.LENGTH_SHORT
+                    ).show()
 
-        if (uri == null) {
-
-            Toast.makeText(
-                context,
-                "Could not save photo",
-                Toast.LENGTH_SHORT
-            ).show()
-
-            return null
-        }
+                    return null
+                }
 
         return try {
 
             resolver.openOutputStream(uri)
                 ?.use { output ->
-
                     bitmap.compress(
                         Bitmap.CompressFormat.JPEG,
                         95,
@@ -380,12 +356,6 @@ fun CameraScreen() {
                 )
             }
 
-            Toast.makeText(
-                context,
-                "Photo saved",
-                Toast.LENGTH_SHORT
-            ).show()
-
             uri
 
         } catch (e: Exception) {
@@ -409,7 +379,8 @@ fun CameraScreen() {
     fun capturePhoto() {
 
         val capture =
-            imageCapture ?: return
+            imageCapture
+                ?: return
 
         val tempFile =
             File.createTempFile(
@@ -419,13 +390,14 @@ fun CameraScreen() {
             )
 
         val outputOptions =
-            ImageCapture.OutputFileOptions.Builder(
-                tempFile
-            ).build()
+            ImageCapture.OutputFileOptions
+                .Builder(tempFile)
+                .build()
 
         capture.takePicture(
             outputOptions,
             ContextCompat.getMainExecutor(context),
+
             object :
                 ImageCapture.OnImageSavedCallback {
 
@@ -453,13 +425,6 @@ fun CameraScreen() {
                             return
                         }
 
-                        /*
-                         * Hardware zoom has already been applied
-                         * by CameraX.
-                         *
-                         * Only the extra digital portion needs
-                         * to be cropped from the saved image.
-                         */
                         val digitalFactor =
                             if (hardwareMaxZoom > 0f) {
                                 max(
@@ -474,38 +439,37 @@ fun CameraScreen() {
 
                         if (digitalFactor <= 1.01f) {
 
-                            finalBitmap =
-                                original
+                            finalBitmap = original
 
                         } else {
 
                             val cropWidth =
                                 (
                                     original.width /
-                                        digitalFactor
+                                            digitalFactor
                                     )
-                                        .toInt()
-                                        .coerceAtLeast(1)
+                                    .toInt()
+                                    .coerceAtLeast(1)
 
                             val cropHeight =
                                 (
                                     original.height /
-                                        digitalFactor
+                                            digitalFactor
                                     )
-                                        .toInt()
-                                        .coerceAtLeast(1)
+                                    .toInt()
+                                    .coerceAtLeast(1)
 
                             val left =
                                 (
                                     original.width -
-                                        cropWidth
+                                            cropWidth
                                     ) / 2
 
                             val top =
                                 (
                                     original.height -
-                                        cropHeight
-                                ) / 2
+                                            cropHeight
+                                    ) / 2
 
                             finalBitmap =
                                 Bitmap.createBitmap(
@@ -524,25 +488,25 @@ fun CameraScreen() {
 
                         if (savedUri != null) {
 
-                            /*
-                             * Keep a copy for the thumbnail
-                             * and full-screen preview.
-                             */
-                            latestPhoto =
+                            val viewerBitmap =
                                 finalBitmap.copy(
                                     Bitmap.Config.ARGB_8888,
                                     false
                                 )
+
+                            // Add the new photo to the history.
+                            photos.add(viewerBitmap)
+
+                            // Automatically point viewer at newest photo.
+                            selectedPhotoIndex =
+                                photos.lastIndex
                         }
 
-                        if (
-                            finalBitmap !== original
-                        ) {
+                        if (finalBitmap !== original) {
                             finalBitmap.recycle()
                         }
 
                         original.recycle()
-
                         tempFile.delete()
 
                     } catch (e: Exception) {
@@ -558,8 +522,7 @@ fun CameraScreen() {
                 }
 
                 override fun onError(
-                    exception:
-                    ImageCaptureException
+                    exception: ImageCaptureException
                 ) {
 
                     tempFile.delete()
@@ -575,18 +538,26 @@ fun CameraScreen() {
     }
 
     LaunchedEffect(isFrontCamera) {
-
         if (previewView != null) {
             startCamera()
         }
     }
 
-    /*
-     * Full-screen photo preview.
-     */
-    if (showPhotoPreview &&
-        latestPhoto != null
+    // ---------------- PHOTO VIEWER ----------------
+
+    if (
+        showPhotoPreview &&
+        photos.isNotEmpty()
     ) {
+
+        val currentPhoto =
+            photos[
+                selectedPhotoIndex
+                    .coerceIn(
+                        0,
+                        photos.lastIndex
+                    )
+            ]
 
         Box(
             modifier = Modifier
@@ -595,20 +566,82 @@ fun CameraScreen() {
         ) {
 
             Image(
-                bitmap =
-                    latestPhoto!!.asImageBitmap(),
-                contentDescription =
-                    "Photo preview",
+                bitmap = currentPhoto.asImageBitmap(),
+                contentDescription = "Photo preview",
+
                 modifier = Modifier
-                    .fillMaxSize(),
-                contentScale =
-                    ContentScale.Fit
+                    .fillMaxSize()
+                    .pointerInput(photos.size) {
+
+                        detectHorizontalDragGestures(
+
+                            onHorizontalDrag = {
+                                _, _ ->
+                            },
+
+                            onDragEnd = {
+                            },
+
+                            onDragCancel = {
+                            }
+                        )
+                    }
+                    .pointerInput(photos.size) {
+
+                        var totalDrag = 0f
+
+                        detectHorizontalDragGestures(
+
+                            onHorizontalDrag = {
+                                change,
+                                dragAmount ->
+
+                                change.consume()
+
+                                totalDrag += dragAmount
+                            },
+
+                            onDragEnd = {
+
+                                if (
+                                    abs(totalDrag) > 80f
+                                ) {
+
+                                    if (
+                                        totalDrag < 0f &&
+                                        selectedPhotoIndex <
+                                        photos.lastIndex
+                                    ) {
+
+                                        selectedPhotoIndex++
+
+                                    } else if (
+                                        totalDrag > 0f &&
+                                        selectedPhotoIndex > 0
+                                    ) {
+
+                                        selectedPhotoIndex--
+                                    }
+                                }
+
+                                totalDrag = 0f
+                            },
+
+                            onDragCancel = {
+                                totalDrag = 0f
+                            }
+                        )
+                    },
+
+                contentScale = ContentScale.Fit
             )
 
+            // Close button.
             IconButton(
                 onClick = {
                     showPhotoPreview = false
                 },
+
                 modifier = Modifier
                     .padding(
                         top = 30.dp,
@@ -616,17 +649,49 @@ fun CameraScreen() {
                     )
                     .size(52.dp)
                     .background(
-                        Color.Black.copy(alpha = 0.5f),
+                        Color.Black.copy(
+                            alpha = 0.55f
+                        ),
                         CircleShape
                     )
             ) {
 
                 Icon(
-                    imageVector =
-                        Icons.Default.Close,
-                    contentDescription =
-                        "Close preview",
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Close",
                     tint = Color.White
+                )
+            }
+
+            // Photo counter.
+            Text(
+                text =
+                    "${selectedPhotoIndex + 1} / ${photos.size}",
+
+                color = Color.White,
+
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 45.dp),
+
+                fontSize = 16.sp
+            )
+
+            // Swipe instructions.
+            if (photos.size > 1) {
+
+                Text(
+                    text = "Swipe left or right",
+
+                    color = Color.White.copy(
+                        alpha = 0.75f
+                    ),
+
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 35.dp),
+
+                    fontSize = 14.sp
                 )
             }
         }
@@ -634,15 +699,14 @@ fun CameraScreen() {
         return
     }
 
+    // ---------------- CAMERA ----------------
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
     ) {
 
-        /*
-         * LIVE CAMERA
-         */
         AndroidView(
             factory = { ctx ->
 
@@ -661,18 +725,23 @@ fun CameraScreen() {
                     }
                 }
             },
+
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-                    scaleX = digitalPreviewZoom
-                    scaleY = digitalPreviewZoom
+
+                    scaleX =
+                        digitalPreviewZoom
+
+                    scaleY =
+                        digitalPreviewZoom
+
                     clip = true
                 }
         )
 
-        /*
-         * TOP CONTROLS
-         */
+        // TOP BAR
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -681,8 +750,10 @@ fun CameraScreen() {
                     start = 18.dp,
                     end = 18.dp
                 ),
+
             horizontalArrangement =
                 Arrangement.SpaceBetween,
+
             verticalAlignment =
                 Alignment.CenterVertically
         ) {
@@ -697,16 +768,7 @@ fun CameraScreen() {
 
                 IconButton(
                     onClick = {
-
-                        flashEnabled =
-                            !flashEnabled
-
-                        imageCapture?.flashMode =
-                            if (flashEnabled) {
-                                ImageCapture.FLASH_MODE_ON
-                            } else {
-                                ImageCapture.FLASH_MODE_OFF
-                            }
+                        toggleFlash()
                     }
                 ) {
 
@@ -717,14 +779,20 @@ fun CameraScreen() {
                             } else {
                                 Icons.Default.FlashOff
                             },
+
                         contentDescription =
                             "Flash",
-                        tint = Color.White
+
+                        tint = Color.White,
+
+                        modifier =
+                            Modifier.size(28.dp)
                     )
                 }
 
                 IconButton(
                     onClick = {
+
                         Toast.makeText(
                             context,
                             "SpaceX Zoom",
@@ -736,17 +804,18 @@ fun CameraScreen() {
                     Icon(
                         imageVector =
                             Icons.Default.Info,
+
                         contentDescription =
                             "Information",
+
                         tint = Color.White
                     )
                 }
             }
         }
 
-        /*
-         * ZOOM DISPLAY
-         */
+        // ZOOM CONTROL
+
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -756,6 +825,7 @@ fun CameraScreen() {
                     start = 24.dp,
                     end = 24.dp
                 ),
+
             horizontalAlignment =
                 Alignment.CenterHorizontally
         ) {
@@ -768,8 +838,9 @@ fun CameraScreen() {
                 Icon(
                     imageVector =
                         Icons.Default.ZoomIn,
-                    contentDescription =
-                        null,
+
+                    contentDescription = null,
+
                     tint = Color.White
                 )
 
@@ -784,25 +855,29 @@ fun CameraScreen() {
                             "%.1fx",
                             zoom
                         ),
+
                     color = Color.White,
+
                     fontSize = 18.sp
                 )
             }
 
             Slider(
                 value = zoom,
+
                 onValueChange = {
                     updateLiveZoom(it)
                 },
+
                 valueRange = 1f..30f,
+
                 modifier =
                     Modifier.fillMaxWidth()
             )
         }
 
-        /*
-         * BOTTOM CAMERA CONTROLS
-         */
+        // BOTTOM CONTROLS
+
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -812,15 +887,16 @@ fun CameraScreen() {
                     start = 28.dp,
                     end = 28.dp
                 ),
+
             horizontalArrangement =
                 Arrangement.SpaceBetween,
+
             verticalAlignment =
                 Alignment.CenterVertically
         ) {
 
-            /*
-             * LATEST PHOTO THUMBNAIL
-             */
+            // PHOTO THUMBNAIL
+
             Box(
                 modifier = Modifier
                     .size(58.dp)
@@ -836,24 +912,32 @@ fun CameraScreen() {
                         RoundedCornerShape(12.dp)
                     )
                     .clickable(
-                        enabled =
-                            latestPhoto != null
+                        enabled = photos.isNotEmpty()
                     ) {
+
+                        selectedPhotoIndex =
+                            photos.lastIndex
+
                         showPhotoPreview = true
                     },
+
                 contentAlignment =
                     Alignment.Center
             ) {
 
-                if (latestPhoto != null) {
+                if (photos.isNotEmpty()) {
 
                     Image(
                         bitmap =
-                            latestPhoto!!.asImageBitmap(),
+                            photos.last()
+                                .asImageBitmap(),
+
                         contentDescription =
                             "Latest photo",
+
                         modifier =
                             Modifier.fillMaxSize(),
+
                         contentScale =
                             ContentScale.Crop
                     )
@@ -863,22 +947,25 @@ fun CameraScreen() {
                     Icon(
                         imageVector =
                             Icons.Default.CameraAlt,
+
                         contentDescription =
                             null,
+
                         tint = Color.White,
+
                         modifier =
                             Modifier.size(28.dp)
                     )
                 }
             }
 
-            /*
-             * SHUTTER
-             */
+            // SHUTTER
+
             IconButton(
                 onClick = {
                     capturePhoto()
                 },
+
                 modifier = Modifier
                     .size(82.dp)
                     .clip(CircleShape)
@@ -893,26 +980,31 @@ fun CameraScreen() {
                 Icon(
                     imageVector =
                         Icons.Default.CameraAlt,
+
                     contentDescription =
                         "Take photo",
+
                     tint = Color.Black,
+
                     modifier =
                         Modifier.size(42.dp)
                 )
             }
 
-            /*
-             * CAMERA SWITCH
-             */
+            // SWITCH CAMERA
+
             IconButton(
                 onClick = {
                     isFrontCamera =
                         !isFrontCamera
                 },
+
                 modifier = Modifier
                     .size(58.dp)
                     .background(
-                        Color.Black.copy(alpha = 0.45f),
+                        Color.Black.copy(
+                            alpha = 0.45f
+                        ),
                         CircleShape
                     )
             ) {
@@ -920,9 +1012,12 @@ fun CameraScreen() {
                 Icon(
                     imageVector =
                         Icons.Default.FlipCameraAndroid,
+
                     contentDescription =
                         "Switch camera",
+
                     tint = Color.White,
+
                     modifier =
                         Modifier.size(32.dp)
                 )

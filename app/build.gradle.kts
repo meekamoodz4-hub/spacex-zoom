@@ -48,5 +48,7 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
     implementation("androidx.camera:camera-view:$cameraxVersion")
 
+    implementation("com.google.guava:guava:33.4.8-android")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

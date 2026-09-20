@@ -47,6 +47,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -58,12 +59,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.alpha
 import androidx.compose.ui.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LocalLayoutDirection
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.runtime.CompositionLocalProvider
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -73,6 +73,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var previewView: PreviewView
 
     private var imageCapture: ImageCapture? = null
+
     private var currentCameraSelector =
         CameraSelector.DEFAULT_BACK_CAMERA
 
@@ -235,7 +236,8 @@ class MainActivity : ComponentActivity() {
                 ).format(Date()) +
                 ".jpg"
 
-        if (Build.VERSION.SDK_INT >=
+        if (
+            Build.VERSION.SDK_INT >=
             Build.VERSION_CODES.Q
         ) {
 
@@ -289,6 +291,7 @@ class MainActivity : ComponentActivity() {
 
             capture.takePicture(
                 outputOptions,
+
                 androidx.core.content.ContextCompat
                     .getMainExecutor(this),
 
@@ -362,6 +365,7 @@ class MainActivity : ComponentActivity() {
 
             capture.takePicture(
                 outputOptions,
+
                 androidx.core.content.ContextCompat
                     .getMainExecutor(this),
 
@@ -665,7 +669,6 @@ fun SpaceXZoomApp(
                 val alpha by
                     transition.animateFloat(
                         initialValue = 0.55f,
-
                         targetValue = 1f,
 
                         animationSpec =
@@ -702,9 +705,7 @@ fun SpaceXZoomApp(
 
                         Text(
                             text = "🚀",
-
                             fontSize = 70.sp,
-
                             modifier =
                                 Modifier.alpha(alpha)
                         )
@@ -716,9 +717,7 @@ fun SpaceXZoomApp(
 
                         Text(
                             text = "SpaceX Zoom",
-
                             color = Color.White,
-
                             fontSize = 30.sp
                         )
 
@@ -729,9 +728,7 @@ fun SpaceXZoomApp(
 
                         Text(
                             text = "See farther.",
-
                             color = Color.LightGray,
-
                             fontSize = 16.sp
                         )
                     }

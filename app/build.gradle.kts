@@ -50,5 +50,7 @@ dependencies {
 
     implementation("com.google.guava:guava:33.4.8-android")
 
+    implementation("com.google.android.gms:play-services-ads:25.5.0")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

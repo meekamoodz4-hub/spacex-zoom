@@ -34,7 +34,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -74,7 +73,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import com.google.android.gms.ads.AdError
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.FullScreenContentCallback
+import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.MobileAds
+import com.google.android.gms.ads.appopen.AppOpenAd
 import java.io.File
 import kotlin.math.abs
 import kotlin.math.max
@@ -82,15 +86,100 @@ import kotlin.math.min
 
 class MainActivity : ComponentActivity() {
 
+    private var appOpenAd: AppOpenAd? = null
+    private var isLoadingAd = false
+    private var isShowingAd = false
+
+    private val appOpenAdUnitId =
+        "ca-app-pub-5660143909622526/6971631201"
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Initialize Google AdMob.
-        MobileAds.initialize(this)
+        MobileAds.initialize(this) {
+            loadAppOpenAd()
+        }
 
         setContent {
             SpaceXZoomApp()
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+
+        if (appOpenAd != null && !isShowingAd) {
+            showAppOpenAd()
+        }
+    }
+
+    private fun loadAppOpenAd() {
+
+        if (isLoadingAd || appOpenAd != null) {
+            return
+        }
+
+        isLoadingAd = true
+
+        val request =
+            AdRequest.Builder().build()
+
+        AppOpenAd.load(
+            this,
+            appOpenAdUnitId,
+            request,
+            object : AppOpenAd.AppOpenAdLoadCallback() {
+
+                override fun onAdLoaded(
+                    ad: AppOpenAd
+                ) {
+                    appOpenAd = ad
+                    isLoadingAd = false
+                }
+
+                override fun onAdFailedToLoad(
+                    error: LoadAdError
+                ) {
+                    isLoadingAd = false
+                    appOpenAd = null
+                }
+            }
+        )
+    }
+
+    private fun showAppOpenAd() {
+
+        val ad = appOpenAd
+            ?: return
+
+        if (isShowingAd) {
+            return
+        }
+
+        isShowingAd = true
+        appOpenAd = null
+
+        ad.fullScreenContentCallback =
+            object : FullScreenContentCallback() {
+
+                override fun onAdDismissedFullScreenContent() {
+                    isShowingAd = false
+                    loadAppOpenAd()
+                }
+
+                override fun onAdFailedToShowFullScreenContent(
+                    adError: AdError
+                ) {
+                    isShowingAd = false
+                    loadAppOpenAd()
+                }
+
+                override fun onAdShowedFullScreenContent() {
+                    isShowingAd = true
+                }
+            }
+
+        ad.show(this)
     }
 }
 

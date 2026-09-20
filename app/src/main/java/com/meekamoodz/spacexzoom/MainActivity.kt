@@ -55,27 +55,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.alpha
+import androidx.compose.ui.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.LayoutDirection
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalInspectionMode
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.layout.Layout
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.runtime.CompositionLocalProvider
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -85,9 +73,14 @@ class MainActivity : ComponentActivity() {
     private lateinit var previewView: PreviewView
 
     private var imageCapture: ImageCapture? = null
-    private var currentCameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-    private var cameraProvider: ProcessCameraProvider? = null
-    private var camera: androidx.camera.core.Camera? = null
+    private var currentCameraSelector =
+        CameraSelector.DEFAULT_BACK_CAMERA
+
+    private var cameraProvider:
+        ProcessCameraProvider? = null
+
+    private var camera:
+        androidx.camera.core.Camera? = null
 
     private val cameraPermissionLauncher =
         registerForActivityResult(
@@ -102,20 +95,25 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
+
             SpaceXZoomApp(
                 onPreviewReady = {
                     previewView = it
                     checkCameraPermission()
                 },
+
                 onCapture = {
                     takePhoto()
                 },
+
                 onSwitchCamera = {
                     switchCamera()
                 },
+
                 onToggleTorch = {
                     toggleTorch()
                 },
+
                 onZoomChanged = { zoom ->
                     camera?.cameraControl?.setZoomRatio(zoom)
                 }
@@ -124,52 +122,67 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkCameraPermission() {
+
         if (
-            androidx.core.content.ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.CAMERA
-            ) == PackageManager.PERMISSION_GRANTED
+            androidx.core.content.ContextCompat
+                .checkSelfPermission(
+                    this,
+                    Manifest.permission.CAMERA
+                ) == PackageManager.PERMISSION_GRANTED
         ) {
+
             startCamera()
+
         } else {
-            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+
+            cameraPermissionLauncher.launch(
+                Manifest.permission.CAMERA
+            )
         }
     }
 
     private fun startCamera() {
+
         val cameraProviderFuture =
             ProcessCameraProvider.getInstance(this)
 
         cameraProviderFuture.addListener({
 
-            cameraProvider = cameraProviderFuture.get()
+            cameraProvider =
+                cameraProviderFuture.get()
 
             try {
+
                 cameraProvider?.unbindAll()
 
-                val preview = Preview.Builder().build()
+                val preview =
+                    Preview.Builder().build()
 
                 preview.setSurfaceProvider(
                     previewView.surfaceProvider
                 )
 
-                imageCapture = ImageCapture.Builder()
-                    .setCaptureMode(
-                        ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
-                    )
-                    .build()
+                imageCapture =
+                    ImageCapture.Builder()
+                        .setCaptureMode(
+                            ImageCapture
+                                .CAPTURE_MODE_MINIMIZE_LATENCY
+                        )
+                        .build()
 
-                camera = cameraProvider?.bindToLifecycle(
-                    this,
-                    currentCameraSelector,
-                    preview,
-                    imageCapture
-                )
+                camera =
+                    cameraProvider?.bindToLifecycle(
+                        this,
+                        currentCameraSelector,
+                        preview,
+                        imageCapture
+                    )
 
             } catch (_: Exception) {
             }
 
-        }, androidx.core.content.ContextCompat.getMainExecutor(this))
+        }, androidx.core.content.ContextCompat
+            .getMainExecutor(this))
     }
 
     private fun switchCamera() {
@@ -179,8 +192,11 @@ class MainActivity : ComponentActivity() {
                 currentCameraSelector ==
                 CameraSelector.DEFAULT_BACK_CAMERA
             ) {
+
                 CameraSelector.DEFAULT_FRONT_CAMERA
+
             } else {
+
                 CameraSelector.DEFAULT_BACK_CAMERA
             }
 
@@ -189,21 +205,27 @@ class MainActivity : ComponentActivity() {
 
     private fun toggleTorch() {
 
-        val currentCamera = camera ?: return
+        val currentCamera =
+            camera ?: return
 
-        if (!currentCamera.cameraInfo.hasFlashUnit()) {
+        if (
+            !currentCamera.cameraInfo.hasFlashUnit()
+        ) {
             return
         }
 
         val enabled =
-            currentCamera.cameraInfo.torchState.value != 1
+            currentCamera.cameraInfo
+                .torchState.value != 1
 
-        currentCamera.cameraControl.enableTorch(enabled)
+        currentCamera.cameraControl
+            .enableTorch(enabled)
     }
 
     private fun takePhoto() {
 
-        val capture = imageCapture ?: return
+        val capture =
+            imageCapture ?: return
 
         val fileName =
             "SpaceXZoom_" +
@@ -213,55 +235,76 @@ class MainActivity : ComponentActivity() {
                 ).format(Date()) +
                 ".jpg"
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        if (Build.VERSION.SDK_INT >=
+            Build.VERSION_CODES.Q
+        ) {
 
-            val values = ContentValues().apply {
+            val values =
+                ContentValues().apply {
 
-                put(
-                    MediaStore.Images.Media.DISPLAY_NAME,
-                    fileName
-                )
+                    put(
+                        MediaStore.Images.Media
+                            .DISPLAY_NAME,
+                        fileName
+                    )
 
-                put(
-                    MediaStore.Images.Media.MIME_TYPE,
-                    "image/jpeg"
-                )
+                    put(
+                        MediaStore.Images.Media
+                            .MIME_TYPE,
+                        "image/jpeg"
+                    )
 
-                put(
-                    MediaStore.Images.Media.RELATIVE_PATH,
-                    "Pictures/SpaceX Zoom"
-                )
+                    put(
+                        MediaStore.Images.Media
+                            .RELATIVE_PATH,
+                        "Pictures/SpaceX Zoom"
+                    )
 
-                put(
-                    MediaStore.Images.Media.IS_PENDING,
-                    1
-                )
-            }
+                    put(
+                        MediaStore.Images.Media
+                            .IS_PENDING,
+                        1
+                    )
+                }
 
-            val resolver = contentResolver
+            val resolver =
+                contentResolver
 
             val uri =
                 resolver.insert(
-                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    MediaStore.Images.Media
+                        .EXTERNAL_CONTENT_URI,
                     values
                 ) ?: return
 
             val outputOptions =
-                ImageCapture.OutputFileOptions.Builder(
-                    resolver,
-                    uri,
-                    ContentValues()
-                ).build()
+                ImageCapture
+                    .OutputFileOptions
+                    .Builder(
+                        resolver,
+                        uri,
+                        ContentValues()
+                    )
+                    .build()
 
             capture.takePicture(
                 outputOptions,
-                androidx.core.content.ContextCompat.getMainExecutor(this),
-                object : ImageCapture.OnImageSavedCallback {
+                androidx.core.content.ContextCompat
+                    .getMainExecutor(this),
+
+                object :
+                    ImageCapture.OnImageSavedCallback {
 
                     override fun onError(
-                        exception: ImageCaptureException
+                        exception:
+                        ImageCaptureException
                     ) {
-                        resolver.delete(uri, null, null)
+
+                        resolver.delete(
+                            uri,
+                            null,
+                            null
+                        )
                     }
 
                     override fun onImageSaved(
@@ -271,8 +314,10 @@ class MainActivity : ComponentActivity() {
 
                         val completedValues =
                             ContentValues().apply {
+
                                 put(
-                                    MediaStore.Images.Media.IS_PENDING,
+                                    MediaStore.Images.Media
+                                        .IS_PENDING,
                                     0
                                 )
                             }
@@ -310,17 +355,22 @@ class MainActivity : ComponentActivity() {
                 )
 
             val outputOptions =
-                ImageCapture.OutputFileOptions
+                ImageCapture
+                    .OutputFileOptions
                     .Builder(photoFile)
                     .build()
 
             capture.takePicture(
                 outputOptions,
-                androidx.core.content.ContextCompat.getMainExecutor(this),
-                object : ImageCapture.OnImageSavedCallback {
+                androidx.core.content.ContextCompat
+                    .getMainExecutor(this),
+
+                object :
+                    ImageCapture.OnImageSavedCallback {
 
                     override fun onError(
-                        exception: ImageCaptureException
+                        exception:
+                        ImageCaptureException
                     ) {
                     }
 
@@ -329,10 +379,13 @@ class MainActivity : ComponentActivity() {
                         ImageCapture.OutputFileResults
                     ) {
 
-                        android.media.MediaScannerConnection
+                        android.media
+                            .MediaScannerConnection
                             .scanFile(
                                 this@MainActivity,
-                                arrayOf(photoFile.absolutePath),
+                                arrayOf(
+                                    photoFile.absolutePath
+                                ),
                                 arrayOf("image/jpeg"),
                                 null
                             )
@@ -365,7 +418,9 @@ fun SpaceXZoomApp(
     }
 
     LaunchedEffect(Unit) {
+
         kotlinx.coroutines.delay(1800)
+
         showSplash = false
     }
 
@@ -379,14 +434,18 @@ fun SpaceXZoomApp(
 
             AndroidView(
                 factory = { context ->
+
                     PreviewView(context).also {
+
                         it.scaleType =
                             PreviewView.ScaleType.FILL_CENTER
 
                         onPreviewReady(it)
                     }
                 },
-                modifier = Modifier.fillMaxSize()
+
+                modifier =
+                    Modifier.fillMaxSize()
             )
 
             Column(
@@ -398,14 +457,18 @@ fun SpaceXZoomApp(
                         start = 18.dp,
                         end = 18.dp
                     ),
+
                 verticalArrangement =
                     Arrangement.SpaceBetween
             ) {
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier =
+                        Modifier.fillMaxWidth(),
+
                     horizontalArrangement =
                         Arrangement.SpaceBetween,
+
                     verticalAlignment =
                         Alignment.CenterVertically
                 ) {
@@ -421,13 +484,19 @@ fun SpaceXZoomApp(
                             .size(48.dp)
                             .clip(CircleShape)
                             .background(
-                                Color.Black.copy(alpha = 0.55f)
+                                Color.Black.copy(
+                                    alpha = 0.55f
+                                )
                             )
                             .clickable {
+
                                 torchOn = !torchOn
+
                                 onToggleTorch()
                             },
-                        contentAlignment = Alignment.Center
+
+                        contentAlignment =
+                            Alignment.Center
                     ) {
 
                         Icon(
@@ -436,7 +505,10 @@ fun SpaceXZoomApp(
                                     Icons.Default.FlashOn
                                 else
                                     Icons.Default.FlashOff,
-                            contentDescription = "Flash",
+
+                            contentDescription =
+                                "Flash",
+
                             tint = Color.White
                         )
                     }
@@ -453,31 +525,39 @@ fun SpaceXZoomApp(
                         fontSize = 28.sp
                     )
 
-                    androidx.compose.runtime.CompositionLocalProvider(
-                        androidx.compose.ui.unit.LocalLayoutDirection
-                            provides LayoutDirection.Ltr
+                    CompositionLocalProvider(
+                        LocalLayoutDirection provides
+                            LayoutDirection.Ltr
                     ) {
 
                         Slider(
                             value = zoom,
-                            onValueChange = {
 
+                            onValueChange = {
                                 zoom = it
                                 onZoomChanged(it)
                             },
-                            valueRange = 1f..30f,
-                            modifier = Modifier.fillMaxWidth()
+
+                            valueRange =
+                                1f..30f,
+
+                            modifier =
+                                Modifier.fillMaxWidth()
                         )
                     }
 
                     Spacer(
-                        modifier = Modifier.height(12.dp)
+                        modifier =
+                            Modifier.height(12.dp)
                     )
 
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier =
+                            Modifier.fillMaxWidth(),
+
                         horizontalArrangement =
                             Arrangement.SpaceEvenly,
+
                         verticalAlignment =
                             Alignment.CenterVertically
                     ) {
@@ -487,20 +567,26 @@ fun SpaceXZoomApp(
                                 .size(52.dp)
                                 .clip(CircleShape)
                                 .background(
-                                    Color.Black.copy(alpha = 0.6f)
+                                    Color.Black.copy(
+                                        alpha = 0.6f
+                                    )
                                 )
                                 .clickable {
                                     onSwitchCamera()
                                 },
-                            contentAlignment = Alignment.Center
+
+                            contentAlignment =
+                                Alignment.Center
                         ) {
 
                             Icon(
                                 imageVector =
                                     Icons.Default
                                         .FlipCameraAndroid,
+
                                 contentDescription =
                                     "Switch camera",
+
                                 tint = Color.White
                             )
                         }
@@ -513,7 +599,9 @@ fun SpaceXZoomApp(
                                 .clickable {
                                     onCapture()
                                 },
-                            contentAlignment = Alignment.Center
+
+                            contentAlignment =
+                                Alignment.Center
                         ) {
 
                             Box(
@@ -521,16 +609,21 @@ fun SpaceXZoomApp(
                                     .size(68.dp)
                                     .clip(CircleShape)
                                     .background(Color.Black),
+
                                 contentAlignment =
                                     Alignment.Center
                             ) {
 
                                 Icon(
                                     imageVector =
-                                        Icons.Default.PhotoCamera,
+                                        Icons.Default
+                                            .PhotoCamera,
+
                                     contentDescription =
                                         "Take photo",
+
                                     tint = Color.White,
+
                                     modifier =
                                         Modifier.size(30.dp)
                                 )
@@ -538,7 +631,8 @@ fun SpaceXZoomApp(
                         }
 
                         Spacer(
-                            modifier = Modifier.size(52.dp)
+                            modifier =
+                                Modifier.size(52.dp)
                         )
                     }
                 }
@@ -546,13 +640,21 @@ fun SpaceXZoomApp(
 
             AnimatedVisibility(
                 visible = showSplash,
-                enter = fadeIn(
-                    animationSpec = tween(500)
-                ),
-                exit = fadeOut(
-                    animationSpec = tween(700)
-                ),
-                modifier = Modifier.fillMaxSize()
+
+                enter =
+                    fadeIn(
+                        animationSpec =
+                            tween(500)
+                    ),
+
+                exit =
+                    fadeOut(
+                        animationSpec =
+                            tween(700)
+                    ),
+
+                modifier =
+                    Modifier.fillMaxSize()
             ) {
 
                 val transition =
@@ -563,16 +665,24 @@ fun SpaceXZoomApp(
                 val alpha by
                     transition.animateFloat(
                         initialValue = 0.55f,
+
                         targetValue = 1f,
+
                         animationSpec =
                             infiniteRepeatable(
-                                animation = tween(
-                                    durationMillis = 900,
-                                    easing = LinearEasing
-                                ),
+                                animation =
+                                    tween(
+                                        durationMillis =
+                                            900,
+
+                                        easing =
+                                            LinearEasing
+                                    ),
+
                                 repeatMode =
                                     RepeatMode.Reverse
                             ),
+
                         label = "alpha"
                     )
 
@@ -580,7 +690,9 @@ fun SpaceXZoomApp(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Color.Black),
-                    contentAlignment = Alignment.Center
+
+                    contentAlignment =
+                        Alignment.Center
                 ) {
 
                     Column(
@@ -590,7 +702,9 @@ fun SpaceXZoomApp(
 
                         Text(
                             text = "🚀",
+
                             fontSize = 70.sp,
+
                             modifier =
                                 Modifier.alpha(alpha)
                         )
@@ -602,7 +716,9 @@ fun SpaceXZoomApp(
 
                         Text(
                             text = "SpaceX Zoom",
+
                             color = Color.White,
+
                             fontSize = 30.sp
                         )
 
@@ -613,7 +729,9 @@ fun SpaceXZoomApp(
 
                         Text(
                             text = "See farther.",
+
                             color = Color.LightGray,
+
                             fontSize = 16.sp
                         )
                     }

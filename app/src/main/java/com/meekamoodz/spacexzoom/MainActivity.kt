@@ -74,14 +74,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import com.google.android.gms.ads.MobileAds
 import java.io.File
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Initialize Google AdMob.
+        MobileAds.initialize(this)
+
         setContent {
             SpaceXZoomApp()
         }
@@ -147,7 +153,6 @@ fun CameraScreen() {
     var hardwareMaxZoom by remember { mutableFloatStateOf(1f) }
     var digitalPreviewZoom by remember { mutableFloatStateOf(1f) }
 
-    // Stores every photo taken during this app session.
     val photos = remember {
         mutableStateListOf<Bitmap>()
     }
@@ -494,10 +499,8 @@ fun CameraScreen() {
                                     false
                                 )
 
-                            // Add the new photo to the history.
                             photos.add(viewerBitmap)
 
-                            // Automatically point viewer at newest photo.
                             selectedPhotoIndex =
                                 photos.lastIndex
                         }
@@ -574,7 +577,6 @@ fun CameraScreen() {
                     .pointerInput(photos.size) {
 
                         detectHorizontalDragGestures(
-
                             onHorizontalDrag = {
                                 _, _ ->
                             },
@@ -636,7 +638,6 @@ fun CameraScreen() {
                 contentScale = ContentScale.Fit
             )
 
-            // Close button.
             IconButton(
                 onClick = {
                     showPhotoPreview = false
@@ -663,7 +664,6 @@ fun CameraScreen() {
                 )
             }
 
-            // Photo counter.
             Text(
                 text =
                     "${selectedPhotoIndex + 1} / ${photos.size}",
@@ -677,7 +677,6 @@ fun CameraScreen() {
                 fontSize = 16.sp
             )
 
-            // Swipe instructions.
             if (photos.size > 1) {
 
                 Text(

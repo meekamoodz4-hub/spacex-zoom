@@ -2,6 +2,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:allowBackup="true"
@@ -9,6 +10,11 @@
         android:label="SpaceX Zoom"
         android:supportsRtl="true"
         android:theme="@style/Theme.SpaceXZoom">
+
+        <!-- Google AdMob App ID -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-5660143909622526~6841884675" />
 
         <activity
             android:name=".MainActivity"

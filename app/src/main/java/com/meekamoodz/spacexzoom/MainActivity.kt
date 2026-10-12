@@ -1,3 +1,4 @@
+
 package com.meekamoodz.spacexzoom
 
 import android.Manifest
@@ -34,6 +35,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -52,6 +54,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -68,6 +71,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -75,6 +79,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdSize
+import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.MobileAds
@@ -83,6 +89,9 @@ import java.io.File
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+
+private const val BANNER_TEST_AD_ID =
+    "ca-app-pub-3940256099942544/9214589741"
 
 class MainActivity : ComponentActivity() {
 
@@ -114,32 +123,22 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun loadAppOpenAd() {
-
-        if (isLoadingAd || appOpenAd != null) {
-            return
-        }
+        if (isLoadingAd || appOpenAd != null) return
 
         isLoadingAd = true
-
-        val request =
-            AdRequest.Builder().build()
 
         AppOpenAd.load(
             this,
             appOpenAdUnitId,
-            request,
+            AdRequest.Builder().build(),
             object : AppOpenAd.AppOpenAdLoadCallback() {
 
-                override fun onAdLoaded(
-                    ad: AppOpenAd
-                ) {
+                override fun onAdLoaded(ad: AppOpenAd) {
                     appOpenAd = ad
                     isLoadingAd = false
                 }
 
-                override fun onAdFailedToLoad(
-                    error: LoadAdError
-                ) {
+                override fun onAdFailedToLoad(error: LoadAdError) {
                     isLoadingAd = false
                     appOpenAd = null
                 }
@@ -148,13 +147,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showAppOpenAd() {
+        val ad = appOpenAd ?: return
 
-        val ad = appOpenAd
-            ?: return
-
-        if (isShowingAd) {
-            return
-        }
+        if (isShowingAd) return
 
         isShowingAd = true
         appOpenAd = null
@@ -228,19 +223,62 @@ fun SpaceXZoomApp() {
 }
 
 @Composable
+fun SpaceXBannerAd(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val screenWidthDp =
+        LocalConfiguration.current.screenWidthDp
+
+    val adSize = remember(screenWidthDp) {
+        AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(
+            context,
+            screenWidthDp
+        )
+    }
+
+    val adView = remember(context) {
+        AdView(context)
+    }
+
+    DisposableEffect(adView, adSize) {
+        adView.adUnitId = BANNER_TEST_AD_ID
+        adView.setAdSize(adSize)
+        adView.loadAd(AdRequest.Builder().build())
+
+        onDispose {
+            adView.destroy()
+        }
+    }
+
+    AndroidView(
+        factory = { adView },
+        modifier = modifier
+            .fillMaxWidth()
+            .height(adSize.height.dp)
+    )
+}
+
+@Composable
 fun CameraScreen() {
     val context = LocalContext.current
 
-    var previewView by remember { mutableStateOf<PreviewView?>(null) }
-    var camera by remember { mutableStateOf<Camera?>(null) }
-    var imageCapture by remember { mutableStateOf<ImageCapture?>(null) }
+    var previewView by remember {
+        mutableStateOf<PreviewView?>(null)
+    }
+    var camera by remember {
+        mutableStateOf<Camera?>(null)
+    }
+    var imageCapture by remember {
+        mutableStateOf<ImageCapture?>(null)
+    }
 
     var isFrontCamera by remember { mutableStateOf(false) }
     var flashEnabled by remember { mutableStateOf(false) }
 
     var zoom by remember { mutableFloatStateOf(1f) }
     var hardwareMaxZoom by remember { mutableFloatStateOf(1f) }
-    var digitalPreviewZoom by remember { mutableFloatStateOf(1f) }
+    var digitalPreviewZoom by remember {
+        mutableFloatStateOf(1f)
+    }
 
     val photos = remember {
         mutableStateListOf<Bitmap>()
@@ -251,22 +289,14 @@ fun CameraScreen() {
 
     fun updateLiveZoom(newZoom: Float) {
         val safeZoom = newZoom.coerceIn(1f, 30f)
-
         zoom = safeZoom
 
-        val hardwareZoom = min(
-            safeZoom,
-            hardwareMaxZoom
-        )
-
+        val hardwareZoom = min(safeZoom, hardwareMaxZoom)
         camera?.cameraControl?.setZoomRatio(hardwareZoom)
 
         digitalPreviewZoom =
             if (hardwareMaxZoom > 0f) {
-                max(
-                    1f,
-                    safeZoom / hardwareMaxZoom
-                )
+                max(1f, safeZoom / hardwareMaxZoom)
             } else {
                 1f
             }
@@ -278,8 +308,7 @@ fun CameraScreen() {
 
         cameraProviderFuture.addListener(
             {
-                val cameraProvider =
-                    cameraProviderFuture.get()
+                val cameraProvider = cameraProviderFuture.get()
 
                 val selector =
                     if (isFrontCamera) {
@@ -288,36 +317,28 @@ fun CameraScreen() {
                         CameraSelector.DEFAULT_BACK_CAMERA
                     }
 
-                val preview =
-                    Preview.Builder().build()
+                val preview = Preview.Builder().build()
 
-                val capture =
-                    ImageCapture.Builder()
-                        .setCaptureMode(
-                            ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
-                        )
-                        .setFlashMode(
-                            ImageCapture.FLASH_MODE_OFF
-                        )
-                        .build()
+                val capture = ImageCapture.Builder()
+                    .setCaptureMode(
+                        ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
+                    )
+                    .setFlashMode(ImageCapture.FLASH_MODE_OFF)
+                    .build()
 
-                val view = previewView
-                    ?: return@addListener
+                val view = previewView ?: return@addListener
 
-                preview.setSurfaceProvider(
-                    view.surfaceProvider
-                )
+                preview.setSurfaceProvider(view.surfaceProvider)
 
                 try {
                     cameraProvider.unbindAll()
 
-                    val newCamera =
-                        cameraProvider.bindToLifecycle(
-                            context as ComponentActivity,
-                            selector,
-                            preview,
-                            capture
-                        )
+                    val newCamera = cameraProvider.bindToLifecycle(
+                        context as ComponentActivity,
+                        selector,
+                        preview,
+                        capture
+                    )
 
                     camera = newCamera
                     imageCapture = capture
@@ -327,7 +348,6 @@ fun CameraScreen() {
                             ?.maxZoomRatio ?: 1f
 
                     flashEnabled = false
-
                     updateLiveZoom(zoom)
 
                 } catch (e: Exception) {
@@ -343,8 +363,7 @@ fun CameraScreen() {
     }
 
     fun toggleFlash() {
-        val currentCamera = camera
-            ?: return
+        val currentCamera = camera ?: return
 
         if (!currentCamera.cameraInfo.hasFlashUnit()) {
             Toast.makeText(
@@ -352,7 +371,6 @@ fun CameraScreen() {
                 "This camera has no flash",
                 Toast.LENGTH_SHORT
             ).show()
-
             flashEnabled = false
             return
         }
@@ -369,96 +387,70 @@ fun CameraScreen() {
             )
     }
 
-    fun saveBitmapToGallery(
-        bitmap: Bitmap
-    ): Uri? {
-
+    fun saveBitmapToGallery(bitmap: Bitmap): Uri? {
         val filename =
             "SpaceX_Zoom_${System.currentTimeMillis()}.jpg"
 
-        val resolver =
-            context.contentResolver
+        val resolver = context.contentResolver
 
-        val values =
-            ContentValues().apply {
-
-                put(
-                    MediaStore.Images.Media.DISPLAY_NAME,
-                    filename
-                )
-
-                put(
-                    MediaStore.Images.Media.MIME_TYPE,
-                    "image/jpeg"
-                )
-
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    put(
-                        MediaStore.Images.Media.RELATIVE_PATH,
-                        Environment.DIRECTORY_PICTURES +
-                                "/SpaceX Zoom"
-                    )
-
-                    put(
-                        MediaStore.Images.Media.IS_PENDING,
-                        1
-                    )
-                }
-            }
-
-        val uri =
-            resolver.insert(
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                values
+        val values = ContentValues().apply {
+            put(
+                MediaStore.Images.Media.DISPLAY_NAME,
+                filename
             )
-                ?: run {
-                    Toast.makeText(
-                        context,
-                        "Could not save photo",
-                        Toast.LENGTH_SHORT
-                    ).show()
-
-                    return null
-                }
-
-        return try {
-
-            resolver.openOutputStream(uri)
-                ?.use { output ->
-                    bitmap.compress(
-                        Bitmap.CompressFormat.JPEG,
-                        95,
-                        output
-                    )
-                }
+            put(
+                MediaStore.Images.Media.MIME_TYPE,
+                "image/jpeg"
+            )
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-
-                val finishedValues =
-                    ContentValues().apply {
-                        put(
-                            MediaStore.Images.Media.IS_PENDING,
-                            0
-                        )
-                    }
-
-                resolver.update(
-                    uri,
-                    finishedValues,
-                    null,
-                    null
+                put(
+                    MediaStore.Images.Media.RELATIVE_PATH,
+                    Environment.DIRECTORY_PICTURES +
+                        "/SpaceX Zoom"
                 )
+                put(
+                    MediaStore.Images.Media.IS_PENDING,
+                    1
+                )
+            }
+        }
+
+        val uri = resolver.insert(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            values
+        ) ?: run {
+            Toast.makeText(
+                context,
+                "Could not save photo",
+                Toast.LENGTH_SHORT
+            ).show()
+            return null
+        }
+
+        return try {
+            resolver.openOutputStream(uri)?.use { output ->
+                bitmap.compress(
+                    Bitmap.CompressFormat.JPEG,
+                    95,
+                    output
+                )
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val finishedValues = ContentValues().apply {
+                    put(
+                        MediaStore.Images.Media.IS_PENDING,
+                        0
+                    )
+                }
+
+                resolver.update(uri, finishedValues, null, null)
             }
 
             uri
-
         } catch (e: Exception) {
-
-            resolver.delete(
-                uri,
-                null,
-                null
-            )
+            resolver.delete(uri, null, null)
 
             Toast.makeText(
                 context,
@@ -471,60 +463,45 @@ fun CameraScreen() {
     }
 
     fun capturePhoto() {
+        val capture = imageCapture ?: return
 
-        val capture =
-            imageCapture
-                ?: return
-
-        val tempFile =
-            File.createTempFile(
-                "spacex_zoom_",
-                ".jpg",
-                context.cacheDir
-            )
+        val tempFile = File.createTempFile(
+            "spacex_zoom_",
+            ".jpg",
+            context.cacheDir
+        )
 
         val outputOptions =
-            ImageCapture.OutputFileOptions
-                .Builder(tempFile)
-                .build()
+            ImageCapture.OutputFileOptions.Builder(tempFile).build()
 
         capture.takePicture(
             outputOptions,
             ContextCompat.getMainExecutor(context),
-
-            object :
-                ImageCapture.OnImageSavedCallback {
+            object : ImageCapture.OnImageSavedCallback {
 
                 override fun onImageSaved(
                     outputFileResults:
-                    ImageCapture.OutputFileResults
+                        ImageCapture.OutputFileResults
                 ) {
-
                     try {
-
                         val original =
                             BitmapFactory.decodeFile(
                                 tempFile.absolutePath
                             )
 
                         if (original == null) {
-
                             Toast.makeText(
                                 context,
                                 "Photo capture failed",
                                 Toast.LENGTH_SHORT
                             ).show()
-
                             tempFile.delete()
                             return
                         }
 
                         val digitalFactor =
                             if (hardwareMaxZoom > 0f) {
-                                max(
-                                    1f,
-                                    zoom / hardwareMaxZoom
-                                )
+                                max(1f, zoom / hardwareMaxZoom)
                             } else {
                                 1f
                             }
@@ -532,77 +509,51 @@ fun CameraScreen() {
                         val finalBitmap: Bitmap
 
                         if (digitalFactor <= 1.01f) {
-
                             finalBitmap = original
-
                         } else {
-
                             val cropWidth =
-                                (
-                                    original.width /
-                                            digitalFactor
-                                    )
-                                    .toInt()
-                                    .coerceAtLeast(1)
+                                (original.width / digitalFactor)
+                                    .toInt().coerceAtLeast(1)
 
                             val cropHeight =
-                                (
-                                    original.height /
-                                            digitalFactor
-                                    )
-                                    .toInt()
-                                    .coerceAtLeast(1)
+                                (original.height / digitalFactor)
+                                    .toInt().coerceAtLeast(1)
 
                             val left =
-                                (
-                                    original.width -
-                                            cropWidth
-                                    ) / 2
+                                (original.width - cropWidth) / 2
 
                             val top =
-                                (
-                                    original.height -
-                                            cropHeight
-                                    ) / 2
+                                (original.height - cropHeight) / 2
 
-                            finalBitmap =
-                                Bitmap.createBitmap(
-                                    original,
-                                    left,
-                                    top,
-                                    cropWidth,
-                                    cropHeight
-                                )
+                            finalBitmap = Bitmap.createBitmap(
+                                original,
+                                left,
+                                top,
+                                cropWidth,
+                                cropHeight
+                            )
                         }
 
                         val savedUri =
-                            saveBitmapToGallery(
-                                finalBitmap
-                            )
+                            saveBitmapToGallery(finalBitmap)
 
                         if (savedUri != null) {
-
-                            val viewerBitmap =
-                                finalBitmap.copy(
-                                    Bitmap.Config.ARGB_8888,
-                                    false
-                                )
+                            val viewerBitmap = finalBitmap.copy(
+                                Bitmap.Config.ARGB_8888,
+                                false
+                            )
 
                             photos.add(viewerBitmap)
-
-                            selectedPhotoIndex =
-                                photos.lastIndex
+                            selectedPhotoIndex = photos.lastIndex
                         }
 
                         if (finalBitmap !== original) {
                             finalBitmap.recycle()
                         }
-
                         original.recycle()
                         tempFile.delete()
 
                     } catch (e: Exception) {
-
                         tempFile.delete()
 
                         Toast.makeText(
@@ -616,7 +567,6 @@ fun CameraScreen() {
                 override fun onError(
                     exception: ImageCaptureException
                 ) {
-
                     tempFile.delete()
 
                     Toast.makeText(
@@ -635,117 +585,67 @@ fun CameraScreen() {
         }
     }
 
-    // ---------------- PHOTO VIEWER ----------------
+    // PHOTO VIEWER
 
-    if (
-        showPhotoPreview &&
-        photos.isNotEmpty()
-    ) {
-
-        val currentPhoto =
-            photos[
-                selectedPhotoIndex
-                    .coerceIn(
-                        0,
-                        photos.lastIndex
-                    )
-            ]
+    if (showPhotoPreview && photos.isNotEmpty()) {
+        val currentPhoto = photos[
+            selectedPhotoIndex.coerceIn(0, photos.lastIndex)
+        ]
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black)
         ) {
+            var totalDrag by remember {
+                mutableFloatStateOf(0f)
+            }
 
             Image(
                 bitmap = currentPhoto.asImageBitmap(),
                 contentDescription = "Photo preview",
-
                 modifier = Modifier
                     .fillMaxSize()
                     .pointerInput(photos.size) {
-
                         detectHorizontalDragGestures(
-                            onHorizontalDrag = {
-                                _, _ ->
-                            },
-
-                            onDragEnd = {
-                            },
-
-                            onDragCancel = {
-                            }
-                        )
-                    }
-                    .pointerInput(photos.size) {
-
-                        var totalDrag = 0f
-
-                        detectHorizontalDragGestures(
-
-                            onHorizontalDrag = {
-                                change,
-                                dragAmount ->
-
+                            onHorizontalDrag = { change, dragAmount ->
                                 change.consume()
-
                                 totalDrag += dragAmount
                             },
-
                             onDragEnd = {
-
-                                if (
-                                    abs(totalDrag) > 80f
-                                ) {
-
+                                if (abs(totalDrag) > 80f) {
                                     if (
                                         totalDrag < 0f &&
-                                        selectedPhotoIndex <
-                                        photos.lastIndex
+                                        selectedPhotoIndex < photos.lastIndex
                                     ) {
-
                                         selectedPhotoIndex++
-
                                     } else if (
                                         totalDrag > 0f &&
                                         selectedPhotoIndex > 0
                                     ) {
-
                                         selectedPhotoIndex--
                                     }
                                 }
-
                                 totalDrag = 0f
                             },
-
                             onDragCancel = {
                                 totalDrag = 0f
                             }
                         )
                     },
-
                 contentScale = ContentScale.Fit
             )
 
             IconButton(
-                onClick = {
-                    showPhotoPreview = false
-                },
-
+                onClick = { showPhotoPreview = false },
                 modifier = Modifier
-                    .padding(
-                        top = 30.dp,
-                        start = 12.dp
-                    )
+                    .padding(top = 30.dp, start = 12.dp)
                     .size(52.dp)
                     .background(
-                        Color.Black.copy(
-                            alpha = 0.55f
-                        ),
+                        Color.Black.copy(alpha = 0.55f),
                         CircleShape
                     )
             ) {
-
                 Icon(
                     imageVector = Icons.Default.Close,
                     contentDescription = "Close",
@@ -754,31 +654,21 @@ fun CameraScreen() {
             }
 
             Text(
-                text =
-                    "${selectedPhotoIndex + 1} / ${photos.size}",
-
+                text = "${selectedPhotoIndex + 1} / ${photos.size}",
                 color = Color.White,
-
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(top = 45.dp),
-
                 fontSize = 16.sp
             )
 
             if (photos.size > 1) {
-
                 Text(
                     text = "Swipe left or right",
-
-                    color = Color.White.copy(
-                        alpha = 0.75f
-                    ),
-
+                    color = Color.White.copy(alpha = 0.75f),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .padding(bottom = 35.dp),
-
                     fontSize = 14.sp
                 )
             }
@@ -787,43 +677,29 @@ fun CameraScreen() {
         return
     }
 
-    // ---------------- CAMERA ----------------
+    // CAMERA SCREEN
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
     ) {
-
         AndroidView(
             factory = { ctx ->
-
                 PreviewView(ctx).apply {
-
-                    scaleType =
-                        PreviewView.ScaleType.FILL_CENTER
-
+                    scaleType = PreviewView.ScaleType.FILL_CENTER
                     implementationMode =
                         PreviewView.ImplementationMode.PERFORMANCE
 
                     previewView = this
-
-                    post {
-                        startCamera()
-                    }
+                    post { startCamera() }
                 }
             },
-
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
-
-                    scaleX =
-                        digitalPreviewZoom
-
-                    scaleY =
-                        digitalPreviewZoom
-
+                    scaleX = digitalPreviewZoom
+                    scaleY = digitalPreviewZoom
                     clip = true
                 }
         )
@@ -833,19 +709,10 @@ fun CameraScreen() {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(
-                    top = 30.dp,
-                    start = 18.dp,
-                    end = 18.dp
-                ),
-
-            horizontalArrangement =
-                Arrangement.SpaceBetween,
-
-            verticalAlignment =
-                Alignment.CenterVertically
+                .padding(top = 30.dp, start = 18.dp, end = 18.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-
             Text(
                 text = "SpaceX Zoom",
                 color = Color.White,
@@ -853,34 +720,21 @@ fun CameraScreen() {
             )
 
             Row {
-
-                IconButton(
-                    onClick = {
-                        toggleFlash()
-                    }
-                ) {
-
+                IconButton(onClick = { toggleFlash() }) {
                     Icon(
-                        imageVector =
-                            if (flashEnabled) {
-                                Icons.Default.FlashOn
-                            } else {
-                                Icons.Default.FlashOff
-                            },
-
-                        contentDescription =
-                            "Flash",
-
+                        imageVector = if (flashEnabled) {
+                            Icons.Default.FlashOn
+                        } else {
+                            Icons.Default.FlashOff
+                        },
+                        contentDescription = "Flash",
                         tint = Color.White,
-
-                        modifier =
-                            Modifier.size(28.dp)
+                        modifier = Modifier.size(28.dp)
                     )
                 }
 
                 IconButton(
                     onClick = {
-
                         Toast.makeText(
                             context,
                             "SpaceX Zoom",
@@ -888,194 +742,116 @@ fun CameraScreen() {
                         ).show()
                     }
                 ) {
-
                     Icon(
-                        imageVector =
-                            Icons.Default.Info,
-
-                        contentDescription =
-                            "Information",
-
+                        imageVector = Icons.Default.Info,
+                        contentDescription = "Information",
                         tint = Color.White
                     )
                 }
             }
         }
 
-        // ZOOM CONTROL
+        // ZOOM CONTROL — MOVED UP TO MAKE ROOM FOR BANNER
 
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(
-                    bottom = 155.dp,
+                    bottom = 200.dp,
                     start = 24.dp,
                     end = 24.dp
                 ),
-
-            horizontalAlignment =
-                Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-
-            Row(
-                verticalAlignment =
-                    Alignment.CenterVertically
-            ) {
-
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
-                    imageVector =
-                        Icons.Default.ZoomIn,
-
+                    imageVector = Icons.Default.ZoomIn,
                     contentDescription = null,
-
                     tint = Color.White
                 )
 
-                Spacer(
-                    modifier =
-                        Modifier.width(8.dp)
-                )
+                Spacer(modifier = Modifier.width(8.dp))
 
                 Text(
-                    text =
-                        String.format(
-                            "%.1fx",
-                            zoom
-                        ),
-
+                    text = String.format("%.1fx", zoom),
                     color = Color.White,
-
                     fontSize = 18.sp
                 )
             }
 
             Slider(
                 value = zoom,
-
-                onValueChange = {
-                    updateLiveZoom(it)
-                },
-
+                onValueChange = { updateLiveZoom(it) },
                 valueRange = 1f..30f,
-
-                modifier =
-                    Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth()
             )
         }
 
-        // BOTTOM CONTROLS
+        // BOTTOM CAMERA BUTTONS — ABOVE THE BANNER
 
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(
-                    bottom = 30.dp,
+                    bottom = 80.dp,
                     start = 28.dp,
                     end = 28.dp
                 ),
-
-            horizontalArrangement =
-                Arrangement.SpaceBetween,
-
-            verticalAlignment =
-                Alignment.CenterVertically
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-
             // PHOTO THUMBNAIL
 
             Box(
                 modifier = Modifier
                     .size(58.dp)
-                    .clip(
-                        RoundedCornerShape(12.dp)
-                    )
-                    .background(
-                        Color.DarkGray
-                    )
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.DarkGray)
                     .border(
                         2.dp,
                         Color.White,
                         RoundedCornerShape(12.dp)
                     )
-                    .clickable(
-                        enabled = photos.isNotEmpty()
-                    ) {
-
-                        selectedPhotoIndex =
-                            photos.lastIndex
-
+                    .clickable(enabled = photos.isNotEmpty()) {
+                        selectedPhotoIndex = photos.lastIndex
                         showPhotoPreview = true
                     },
-
-                contentAlignment =
-                    Alignment.Center
+                contentAlignment = Alignment.Center
             ) {
-
                 if (photos.isNotEmpty()) {
-
                     Image(
-                        bitmap =
-                            photos.last()
-                                .asImageBitmap(),
-
-                        contentDescription =
-                            "Latest photo",
-
-                        modifier =
-                            Modifier.fillMaxSize(),
-
-                        contentScale =
-                            ContentScale.Crop
+                        bitmap = photos.last().asImageBitmap(),
+                        contentDescription = "Latest photo",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
                     )
-
                 } else {
-
                     Icon(
-                        imageVector =
-                            Icons.Default.CameraAlt,
-
-                        contentDescription =
-                            null,
-
+                        imageVector = Icons.Default.CameraAlt,
+                        contentDescription = null,
                         tint = Color.White,
-
-                        modifier =
-                            Modifier.size(28.dp)
+                        modifier = Modifier.size(28.dp)
                     )
                 }
             }
 
-            // SHUTTER
+            // SHUTTER BUTTON
 
             IconButton(
-                onClick = {
-                    capturePhoto()
-                },
-
+                onClick = { capturePhoto() },
                 modifier = Modifier
                     .size(82.dp)
                     .clip(CircleShape)
                     .background(Color.White)
-                    .border(
-                        4.dp,
-                        Color.LightGray,
-                        CircleShape
-                    )
+                    .border(4.dp, Color.LightGray, CircleShape)
             ) {
-
                 Icon(
-                    imageVector =
-                        Icons.Default.CameraAlt,
-
-                    contentDescription =
-                        "Take photo",
-
+                    imageVector = Icons.Default.CameraAlt,
+                    contentDescription = "Take photo",
                     tint = Color.Black,
-
-                    modifier =
-                        Modifier.size(42.dp)
+                    modifier = Modifier.size(42.dp)
                 )
             }
 
@@ -1083,33 +859,34 @@ fun CameraScreen() {
 
             IconButton(
                 onClick = {
-                    isFrontCamera =
-                        !isFrontCamera
+                    isFrontCamera = !isFrontCamera
                 },
-
                 modifier = Modifier
                     .size(58.dp)
                     .background(
-                        Color.Black.copy(
-                            alpha = 0.45f
-                        ),
+                        Color.Black.copy(alpha = 0.45f),
                         CircleShape
                     )
             ) {
-
                 Icon(
-                    imageVector =
-                        Icons.Default.FlipCameraAndroid,
-
-                    contentDescription =
-                        "Switch camera",
-
+                    imageVector = Icons.Default.FlipCameraAndroid,
+                    contentDescription = "Switch camera",
                     tint = Color.White,
-
-                    modifier =
-                        Modifier.size(32.dp)
+                    modifier = Modifier.size(32.dp)
                 )
             }
+        }
+
+        // BANNER AD — SEPARATE SPACE AT THE VERY BOTTOM
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(Color.Black),
+            contentAlignment = Alignment.Center
+        ) {
+            SpaceXBannerAd()
         }
     }
 }

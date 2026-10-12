@@ -91,7 +91,7 @@ import kotlin.math.max
 import kotlin.math.min
 
 private const val BANNER_TEST_AD_ID =
-    "ca-app-pub-3940256099942544/9214589741"
+    "ca-app-pub-1083885756946416/9326249654"
 
 class MainActivity : ComponentActivity() {
 
@@ -100,7 +100,7 @@ class MainActivity : ComponentActivity() {
     private var isShowingAd = false
 
     private val appOpenAdUnitId =
-        "ca-app-pub-1083885756946416/9326249654"
+        "ca-app-pub-1083885756946416/7482770664"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

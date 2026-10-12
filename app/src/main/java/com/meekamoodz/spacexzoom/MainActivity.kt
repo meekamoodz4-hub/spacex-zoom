@@ -100,7 +100,7 @@ class MainActivity : ComponentActivity() {
     private var isShowingAd = false
 
     private val appOpenAdUnitId =
-        "ca-app-pub-1083885756946416/7482770664"
+        "ca-app-pub-1083885756946416/9326249654"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
